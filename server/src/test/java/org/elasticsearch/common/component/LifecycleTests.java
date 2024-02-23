@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Test;
 
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +25,120 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 public class LifecycleTests extends ESTestCase {
+    @Test
+    public void stateShouldBeInitializedWhenCreate() {
+        final var lifecycle = new Lifecycle();
+        assertState(lifecycle, Lifecycle.State.INITIALIZED);
+    }
+
+    @Test
+    public void canMoveToStartedWhenInitialized() {
+        final var lifecycle = new Lifecycle();
+        assertTrue(lifecycle.moveToStarted());
+        assertState(lifecycle, Lifecycle.State.STARTED);
+    }
+
+    @Test
+    public void moveToStartedReturnFalseWhenStarted() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        assertState(lifecycle, Lifecycle.State.STARTED);
+        assertFalse(lifecycle.moveToStarted());
+    }
+
+    @Test
+    public void moveToStartedReturnFalseWhenStopped() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        lifecycle.moveToStopped();
+        assertState(lifecycle, Lifecycle.State.STOPPED);
+        AssertionError thrown = assertThrows(AssertionError.class, lifecycle::canMoveToStarted);
+        assertEquals("STOPPED -> STARTED", thrown.getMessage());
+    }
+
+    @Test
+    public void moveToStartedThrowsAssertionErrorExceptionWhenClosed() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        lifecycle.moveToStopped();
+        lifecycle.moveToClosed();
+        assertState(lifecycle, Lifecycle.State.CLOSED);
+        AssertionError thrown = assertThrows(AssertionError.class, lifecycle::canMoveToStarted);
+        assertEquals("CLOSED -> STARTED", thrown.getMessage());
+    }
+
+    @Test
+    public void canMoveToStoppedWhenStarted() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        assertState(lifecycle, Lifecycle.State.STARTED);
+        assertTrue(lifecycle.moveToStopped());
+        assertState(lifecycle, Lifecycle.State.STOPPED);
+    }
+
+    @Test
+    public void moveToStoppedThrowAssertionErrorExceptionWhenInitialized() {
+        final var lifecycle = new Lifecycle();
+        assertState(lifecycle, Lifecycle.State.INITIALIZED);
+        AssertionError thrown = assertThrows(AssertionError.class, lifecycle::canMoveToStopped);
+        assertEquals("INITIALIZED -> STOPPED", thrown.getMessage());
+    }
+
+    @Test
+    public void moveToStoppedReturnFalseWhenStopped() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        lifecycle.moveToStopped();
+        assertState(lifecycle, Lifecycle.State.STOPPED);
+        assertFalse(lifecycle.moveToStopped());
+    }
+
+    @Test
+    public void moveToStoppedThrowsAssertionErrorExceptionWhenClosed() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToClosed();
+        assertState(lifecycle, Lifecycle.State.CLOSED);
+        AssertionError thrown = assertThrows(AssertionError.class, lifecycle::canMoveToStopped);
+        assertEquals("CLOSED -> STOPPED", thrown.getMessage());
+    }
+
+    @Test
+    public void canMoveToClosedWhenInitialized() {
+        final var lifecycle = new Lifecycle();
+        assertState(lifecycle, Lifecycle.State.INITIALIZED);
+        assertTrue(lifecycle.moveToClosed());
+        assertState(lifecycle, Lifecycle.State.CLOSED);
+    }
+
+    @Test
+    public void canMoveToClosedWhenStopped() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        lifecycle.moveToStopped();
+        assertState(lifecycle, Lifecycle.State.STOPPED);
+        assertTrue(lifecycle.moveToClosed());
+        assertState(lifecycle, Lifecycle.State.CLOSED);
+    }
+
+    @Test
+    public void moveToClosedThrowsAssertionErrorExceptionWhenStarted() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToStarted();
+        assertState(lifecycle, Lifecycle.State.STARTED);
+        AssertionError thrown = assertThrows(AssertionError.class, lifecycle::canMoveToClosed);
+        assertEquals("STARTED -> CLOSED", thrown.getMessage());
+    }
+
+    @Test
+    public void moveToClosedReturnFalseWhenClosed() {
+        final var lifecycle = new Lifecycle();
+        lifecycle.moveToClosed();
+        assertState(lifecycle, Lifecycle.State.CLOSED);
+        assertFalse(lifecycle.moveToClosed());
+    }
+
+
+
 
     public void testTransitions() {
         doTransitionTest(false);
